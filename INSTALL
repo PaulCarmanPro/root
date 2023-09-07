@@ -1,0 +1,9 @@
+#! /bin/bash
+
+# INSTALL
+
+dSource="$(dirname -- "${BASH_SOURCE[0]}")"
+# this INSTALL which contains the MakeLinks executable
+# after this, MakeLinks will be installed in $PATH
+dMakeLinks="home/.local/bin/MakeLinks"
+"$dSource/$dMakeLinks" "$HOME" "$dSource/home"
