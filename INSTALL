@@ -1,9 +1,12 @@
 #! /bin/bash
 
-# INSTALL
+# root/INSTALL
+# self contains the MakeLinks executable
+# MakeLinks assumes that Echo.sh is its directory.
+# after this, MakeLinks will be installed in $PATH
+# every other INSTALL uses MakeLinks as if it was installed.
+# every other executable sources Echo.sh via "$(which Echo.sh)"
 
 dSource="$(dirname -- "${BASH_SOURCE[0]}")"
-# this INSTALL which contains the MakeLinks executable
-# after this, MakeLinks will be installed in $PATH
-dMakeLinks="home/.local/bin/MakeLinks"
-"$dSource/$dMakeLinks" "$HOME" "$dSource/home"
+aMakeLinks="home/.local/bin/MakeLinks"
+"$dSource/$aMakeLinks" "$HOME" "$dSource/home"

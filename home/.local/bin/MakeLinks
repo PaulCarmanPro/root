@@ -36,25 +36,6 @@ declare dOverlink=o # write a link over an identical file
 declare dOverwrite # activate via -f|--force
 declare dVerbose=v # default verbose unless -q|--quiet
 
-# reporting
-###########################
-declare dErr # many sources lacking destination dump many identical errors
-declare -i dErrCount
-Err() {
-   dErrCount+=1
-   local zErr="$(printf '!!![%s]!!! %s\n' "${BASH_SOURCE[0]}" "$1")"
-   [[ 2 -ge "$#" ]] \
-      && zErr+="$(printf '%s\n' "${@:2}")"
-   if [[ "$zErr" != "$dErr" ]]; then
-      >&2 printf '%s' "$zErr"
-      dErr="$zErr"
-   fi
-}
-
-Note() {
-   >&2 printf '# %s\n' "$@"
-}
-
 # meat
 ###########################
 CreateDirectory() { # PATH
@@ -62,21 +43,21 @@ CreateDirectory() { # PATH
    # allow user to have/keep extra files not in repository
    local zDest="$1"
    if [[ -d "$zDest" ]]; then
-      [[ "$dVerbose" ]] && Note "Directory exists at $zDest"
+      [[ "$dVerbose" ]] && EchoNote "Directory exists at $zDest"
       return
    elif [[ -e "$zDest" ]]; then
       if cmp "$zDest" "$zDest~" 2>/dev/null; then
-         [[ "$dVerbose" ]] && Note "Already backed up..."
+         [[ "$dVerbose" ]] && EchoNote "Already backed up..."
          rm "$zDest"
       elif [[ "$dOverwrite" ]]; then
-         [[ "$dVerbose" ]] && Note "Overwriting..."
+         [[ "$dVerbose" ]] && EchoNote "Overwriting..."
          rm -rf$dVerbose "$zDest"
       else
-         [[ "$dVerbose" ]] && Note "Backing up..."
+         [[ "$dVerbose" ]] && EchoNote "Backing up..."
          mv -b$dVerbose "$zDest" "$zDest~"
       fi
    fi
-   [[ "$dVerbose" ]] && Note "Creating directory..."
+   [[ "$dVerbose" ]] && EchoNote "Creating directory..."
    mkdir -p$dVerbose "$zDest"
 }
 
@@ -96,11 +77,12 @@ Install() { # SOURCE=File DEST=FutureLink
       local zReadlink="$(readlink "$zDest")" # empty if not link
       if [[ -z "$zCopy" && "$zReadlink" = "$zSource" ]]; then
          [[ "$dVerbose" ]] \
-            && Note "Proper link exists at $zDest -> $zReadlink."
+            && EchoNote "Proper link exists at $zDest."
+         return 0
       elif [[ "$dOverlink" && "$zReadlink" = "$zSource" ]]; then
          # copy is desired because identical link altread tested
          if [[ "$dVerbose" ]]; then
-            Note "Replacing existing link..."
+            EchoNote "Replacing existing link..."
             printf '%s -> %s' "$(rm -rv "$zDest")" "$zReadlink"
          else
             rm -r "$zDest"
@@ -108,34 +90,34 @@ Install() { # SOURCE=File DEST=FutureLink
       elif cmp "$zDest" "$zSource" 2>/dev/null; then
          if [[ "$zReadlink" && "$dOverlink" ]]; then
             [[ "$dVerbose" ]] \
-               && Note "Replacing link to identical at $Readlink..."
+               && EchoNote "Replacing link to identical at $Readlink..."
             rm -r$dVerbose "$zDest"
          else # copy is desired because identical link altread tested
             [[ "$dVerbose" ]] \
-               && Note "Leaving identical $zSource."
+               && EchoNote "Leaving identical $zSource."
             return 0
          fi
       elif cmp "$zDest" "$zDest~" 2>/dev/null; then
          [[ "$dVerbose" ]] \
-            && Note "Already backed up..."
+            && EchoNote "Already backed up..."
          rm -r "$zDest"
       elif [[ "$dOverwrite" ]]; then # flags force overwrite
          [[ "$dVerbose" ]] \
-            && Note "Overwriting..."
+            && EchoNote "Overwriting..."
          rm -r$dVerbose "$zDest"
       else
          [[ "$dVerbose" ]] \
-            && Note "Backing up..."
+            && EchoNote "Backing up..."
          mv -b$dVerbose "$zDest" "$zDest~" # create backup
       fi
    elif [[ ! -e "$(dirname "$zDest")" ]]; then
       CreateDirectory "$(dirname "$zDest")"
    fi
    if [[ "$dCopy" ]]; then
-      [[ "$dVerbose" ]] && Note "Creating copy..."
+      [[ "$dVerbose" ]] && EchoNote "Creating copy..."
       cp -${dVerbose}a "$zSource" "$zDest"
    else
-      [[ "$dVerbose" ]] && Note "Creating link..."
+      [[ "$dVerbose" ]] && EchoNote "Creating link..."
       ln -${dVerbose}sT "$zSource" "$zDest"
    fi
 }
@@ -148,13 +130,10 @@ InstallSources() { # DEST=Directory < SOURCES_NULL_TERMINATED
       zSource="${aSource%/}${z:+/}$z"
       if [[ -d "$zSource" ]]; then
          CreateDirectory "$zDest" \
-            || Err "Could not create destination directory ${aDest@Q}"
-      elif [[ "$dCopy" ]]; then
-         CreateCopy "$zSource" "$zDest" \
-            || Err "Could not create copy from ${zDest@Q} to ${zSource@Q}"
+            || EchoErr "Could not create destination directory ${aDest@Q}"
       else
          Install "$zSource" "$zDest" \
-            || Err "Could not create link from ${zDest@Q} to ${zSource@Q}"
+            || EchoErr "Could not install from ${zDest@Q} to ${zSource@Q}"
       fi
    done
 }
@@ -173,7 +152,7 @@ ProcessFlags() { # ARG
          -s*|--soft) dCopy= ;; # soft link
          -v*|--verbose) dVerbose=v ;;
          --) aDash=-- ;;
-         *) Err "Unknown flag ${zFlag@Q}."
+         *) EchoErr "Unknown flag ${zFlag@Q}."
             exit 1
       esac
       [[ '--' = "${zFlag:0:2}" ]] && break
@@ -198,14 +177,14 @@ while [[ 0 != "$#" ]]; do
       declare aDest="${a%/}"
    else # recursively create links to files found in source
       if ! aSource="$(realpath -e "$a")"; then
-         Err "Could not resolve source path ${aSource@Q}."
+         EchoErr "Could not resolve source path ${aSource@Q}."
       elif [[ "$aDest" = "$aSource" ]]; then
-         Err "Destination identical to source ${aSource@Q}."
+         EchoErr "Destination identical to source ${aSource@Q}."
       else # loop through found files (will ignore empty directories)
          InstallSources "$aDest"  \
                      < <(find "$aSource" -type f -printf '%P\0' | sort -zV)
       fi
    fi
 done
-exit $dErrCount
+exit "${dErrCount:-0}"
 
